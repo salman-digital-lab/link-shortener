@@ -1,3 +1,7 @@
+use crate::{
+    db::DbPool,
+    models::{CreateUrlRequest, CreateUrlResponse, Url, UrlStatsResponse},
+};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -5,10 +9,7 @@ use axum::{
     Json,
 };
 use rand::{distributions::Alphanumeric, Rng};
-use crate::{
-    db::DbPool,
-    models::{CreateUrlRequest, CreateUrlResponse, Url, UrlStatsResponse},
-};
+use sqlx::Row;
 
 // Generate a random 6-character string
 fn generate_short_code() -> String {
@@ -22,7 +23,7 @@ fn generate_short_code() -> String {
 pub async fn shorten_url(
     State(pool): State<DbPool>,
     Json(payload): Json<CreateUrlRequest>,
-) ->  Result<impl IntoResponse, (StatusCode, String)> {
+) -> Result<impl IntoResponse, (StatusCode, String)> {
     let short_code = generate_short_code();
     let original_url = payload.url.clone();
 
@@ -32,7 +33,7 @@ pub async fn shorten_url(
         INSERT INTO urls (id, original_url)
         VALUES ($1, $2)
         RETURNING id, original_url, created_at, visit_count
-        "#
+        "#,
     )
     .bind(short_code)
     .bind(original_url)
@@ -48,7 +49,7 @@ pub async fn shorten_url(
             Ok((StatusCode::CREATED, Json(response)))
         }
         Err(e) => {
-             // In a real app, handle collision (duplicate keys) by retrying with a new code
+            // In a real app, handle collision (duplicate keys) by retrying with a new code
             Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
         }
     }
@@ -58,7 +59,7 @@ pub async fn redirect_url(
     Path(code): Path<String>,
     State(pool): State<DbPool>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    // Fire and forget update stats? For data integrity we might want to await it, 
+    // Fire and forget update stats? For data integrity we might want to await it,
     // or spawn a task. For now, await it.
     let update_result = sqlx::query(
         r#"
@@ -66,7 +67,7 @@ pub async fn redirect_url(
         SET visit_count = visit_count + 1
         WHERE id = $1
         RETURNING original_url
-        "#
+        "#,
     )
     .bind(code)
     .fetch_optional(&pool)
@@ -74,7 +75,9 @@ pub async fn redirect_url(
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if let Some(record) = update_result {
-        Ok(Redirect::temporary(&record.original_url))
+        Ok(Redirect::temporary(
+            &record.get::<String, _>("original_url"),
+        ))
     } else {
         Err(StatusCode::NOT_FOUND)
     }
@@ -89,7 +92,7 @@ pub async fn get_stats(
         SELECT id, original_url, created_at, visit_count
         FROM urls
         WHERE id = $1
-        "#
+        "#,
     )
     .bind(code)
     .fetch_optional(&pool)

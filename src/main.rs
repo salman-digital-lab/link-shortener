@@ -3,7 +3,7 @@ use axum::{
     Router,
 };
 use std::env;
-use std::net::SocketAddr;
+
 use tower_http::trace::TraceLayer;
 
 mod config;
@@ -36,8 +36,8 @@ async fn main() {
     let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let addr = format!("0.0.0.0:{}", port);
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    
+
     tracing::info!("listening on {}", addr);
-    
+
     axum::serve(listener, app).await.unwrap();
 }
