@@ -44,7 +44,7 @@ pub async fn shorten_url(
         Ok(url) => {
             let response = CreateUrlResponse {
                 short_code: url.id.clone(),
-                short_url: format!("http://localhost:3000/{}", url.id), // Hardcoded base URL for MVP
+                short_url: format!("http://localhost:4000/{}", url.id), // Hardcoded base URL for MVP
             };
             Ok((StatusCode::CREATED, Json(response)))
         }
